@@ -1,0 +1,14 @@
+{
+  "name": "wallet-service",
+  "version": "1.0.0",
+  "type": "module",
+  "dependencies": {
+    "drizzle-orm": "^0.38.0",
+    "@neondatabase/serverless": "^0.10.0",
+    "hono": "^4.6.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0",
+    "@types/node": "^22.0.0"
+  }
+}
