@@ -1,0 +1,33 @@
+{
+  "name": "microservice-demo",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev:user": "tsx watch services/user-service/src/index.ts",
+    "dev:wallet": "tsx watch services/wallet-service/src/index.ts",
+    "dev:payment": "tsx watch services/payment-service/src/index.ts",
+    "dev:notification": "tsx watch services/notification-service/src/index.ts",
+    "dev:credit": "tsx watch services/credit-service/src/index.ts",
+    "db:push:user": "set SERVICE=user&& drizzle-kit push",
+    "db:push:wallet": "set SERVICE=wallet&& drizzle-kit push",
+    "db:push:payment": "set SERVICE=payment&& drizzle-kit push",
+    "db:push:notification": "set SERVICE=notification&& drizzle-kit push",
+    "db:push:credit": "set SERVICE=credit&& drizzle-kit push",
+    "db:push:all": "npm run db:push:user && npm run db:push:wallet && npm run db:push:payment && npm run db:push:notification && npm run db:push:credit"
+  },
+  "dependencies": {
+    "drizzle-kit": "^0.31.6",
+    "drizzle-orm": "^0.44.7",
+    "@neondatabase/serverless": "^0.10.0",
+    "hono": "^4.6.0",
+    "@hono/node-server": "^1.13.0",
+    "dotenv": "^16.4.0"
+    
+  },
+  "devDependencies": {
+    "drizzle-kit": "^0.30.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0",
+    "@types/node": "^22.0.0"
+  }
+}

@@ -1,0 +1,187 @@
+{
+  "info": {
+    "name": "Microservice Demo",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "USER_URL", "value": "http://localhost:3001" },
+    { "key": "WALLET_URL", "value": "http://localhost:3002" },
+    { "key": "PAYMENT_URL", "value": "http://localhost:3003" },
+    { "key": "NOTIFICATION_URL", "value": "http://localhost:3004" },
+    { "key": "CREDIT_URL", "value": "http://localhost:3005" },
+    { "key": "USER_ID", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1. User Service",
+      "item": [
+        {
+          "name": "Register User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var res = pm.response.json();",
+                  "if(res.data && res.data.id) {",
+                  "  pm.collectionVariables.set('USER_ID', res.data.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"john@example.com\",\n  \"name\": \"John Doe\"\n}"
+            },
+            "url": "{{USER_URL}}/users"
+          }
+        },
+        {
+          "name": "Get User by ID",
+          "request": {
+            "method": "GET",
+            "url": "{{USER_URL}}/users/{{USER_ID}}"
+          }
+        },
+        {
+          "name": "Get All Users",
+          "request": {
+            "method": "GET",
+            "url": "{{USER_URL}}/users"
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Wallet Service",
+      "item": [
+        {
+          "name": "Get Wallet Balance",
+          "request": {
+            "method": "GET",
+            "url": "{{WALLET_URL}}/wallets/{{USER_ID}}"
+          }
+        },
+        {
+          "name": "Manual Topup",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 50000\n}"
+            },
+            "url": "{{WALLET_URL}}/wallets/{{USER_ID}}/topup"
+          }
+        },
+        {
+          "name": "Deduct Balance",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 10000\n}"
+            },
+            "url": "{{WALLET_URL}}/wallets/{{USER_ID}}/deduct"
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Payment Service",
+      "item": [
+        {
+          "name": "Pay via QRIS",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{USER_ID}}\",\n  \"amount\": 10000,\n  \"method\": \"qris\"\n}"
+            },
+            "url": "{{PAYMENT_URL}}/payments"
+          }
+        },
+        {
+          "name": "Pay via Transfer",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{USER_ID}}\",\n  \"amount\": 25000,\n  \"method\": \"transfer\"\n}"
+            },
+            "url": "{{PAYMENT_URL}}/payments"
+          }
+        },
+        {
+          "name": "Get Payment History",
+          "request": {
+            "method": "GET",
+            "url": "{{PAYMENT_URL}}/payments/{{USER_ID}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Notification Service",
+      "item": [
+        {
+          "name": "Get All Notifications",
+          "request": {
+            "method": "GET",
+            "url": "{{NOTIFICATION_URL}}/notifications/{{USER_ID}}"
+          }
+        },
+        {
+          "name": "Mark as Read",
+          "request": {
+            "method": "PATCH",
+            "url": "{{NOTIFICATION_URL}}/notifications/{{NOTIF_ID}}/read"
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Credit Service",
+      "item": [
+        {
+          "name": "Apply Credit",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{USER_ID}}\",\n  \"amount\": 100000\n}"
+            },
+            "url": "{{CREDIT_URL}}/credits"
+          }
+        },
+        {
+          "name": "Get User Credits",
+          "request": {
+            "method": "GET",
+            "url": "{{CREDIT_URL}}/credits/{{USER_ID}}"
+          }
+        },
+        {
+          "name": "Pay Credit",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{USER_ID}}\",\n  \"amount\": 100000\n}"
+            },
+            "url": "{{CREDIT_URL}}/credits/{{CREDIT_ID}}/pay"
+          }
+        }
+      ]
+    }
+  ]
+}
