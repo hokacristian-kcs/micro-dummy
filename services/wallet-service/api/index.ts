@@ -18,7 +18,7 @@ const wallets = pgTable('wallets', {
 const sql = neon(process.env.WALLET_DB_URL!);
 const db = drizzle(sql);
 
-const NOTIFICATION_URL = process.env.NOTIFICATION_SERVICE_URL || 'http://localhost:3004';
+const NOTIFICATION_URL = process.env.NOTIFICATION_SERVICE_URL;
 
 const app = new Hono().basePath('/api');
 app.use('*', dynatraceMiddleware('wallet-service'));
@@ -59,11 +59,17 @@ app.post('/wallets/:userId/topup', async (c) => {
     
     await sendLog('INFO', 'wallet-service', 'Topup success', { userId, newBalance: wallet.balance });
     
-    await fetch(`${NOTIFICATION_URL}/api/notifications`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId, title: 'Top Up Berhasil', message: `Saldo bertambah Rp${amount}` }),
-    });
+    if (NOTIFICATION_URL) {
+      try {
+        await fetch(`${NOTIFICATION_URL}/api/notifications`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId, title: 'Top Up Berhasil', message: `Saldo bertambah Rp${amount}` }),
+        });
+      } catch (fetchErr: any) {
+        await sendLog('ERROR', 'wallet-service', 'Notification fetch failed', { error: fetchErr.message });
+      }
+    }
     
     return c.json({ success: true, data: wallet });
   } catch (e: any) {

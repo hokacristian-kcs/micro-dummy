@@ -24,9 +24,8 @@ const payments = pgTable('payments', {
 const sql = neon(process.env.PAYMENT_DB_URL!);
 const db = drizzle(sql);
 
-// Service URLs
-const WALLET_URL = process.env.WALLET_SERVICE_URL || 'http://localhost:3002';
-const NOTIFICATION_URL = process.env.NOTIFICATION_SERVICE_URL || 'http://localhost:3004';
+const WALLET_URL = process.env.WALLET_SERVICE_URL;
+const NOTIFICATION_URL = process.env.NOTIFICATION_SERVICE_URL;
 
 // Simulasi BNI
 const simulateBNI = async () => {
@@ -42,12 +41,23 @@ app.post('/payments', async (c) => {
     const { userId, amount, method } = await c.req.json();
     await sendLog('INFO', 'payment-service', 'Processing payment', { userId, amount, method });
     
-    const deductRes = await fetch(`${WALLET_URL}/api/wallets/${userId}/deduct`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ amount }),
-    });
-    const deductData = await deductRes.json();
+    if (!WALLET_URL) {
+      await sendLog('ERROR', 'payment-service', 'WALLET_SERVICE_URL not set');
+      return c.json({ success: false, error: 'Service misconfigured' }, 500);
+    }
+    
+    let deductData;
+    try {
+      const deductRes = await fetch(`${WALLET_URL}/api/wallets/${userId}/deduct`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount }),
+      });
+      deductData = await deductRes.json();
+    } catch (fetchErr: any) {
+      await sendLog('ERROR', 'payment-service', 'Wallet deduct fetch failed', { error: fetchErr.message, walletUrl: WALLET_URL });
+      return c.json({ success: false, error: 'Wallet service unavailable' }, 500);
+    }
     
     if (!deductData.success) {
       await sendLog('ERROR', 'payment-service', 'Insufficient balance', { userId, amount });
@@ -63,20 +73,31 @@ app.post('/payments', async (c) => {
       await sql`UPDATE payments SET status = 'success', external_ref = ${bni.ref} WHERE id = ${payment.id}`;
       await sendLog('INFO', 'payment-service', 'Payment success', { paymentId: payment.id, bniRef: bni.ref });
       
-      await fetch(`${NOTIFICATION_URL}/api/notifications`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, title: 'Pembayaran Berhasil', message: `Pembayaran Rp${amount} via ${method} berhasil` }),
-      });
+      if (NOTIFICATION_URL) {
+        try {
+          await fetch(`${NOTIFICATION_URL}/api/notifications`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId, title: 'Pembayaran Berhasil', message: `Pembayaran Rp${amount} via ${method} berhasil` }),
+          });
+        } catch (fetchErr: any) {
+          await sendLog('ERROR', 'payment-service', 'Notification fetch failed', { error: fetchErr.message });
+        }
+      }
       
       return c.json({ success: true, data: { ...payment, status: 'success' } });
     }
     
-    await fetch(`${WALLET_URL}/api/wallets/${userId}/topup`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ amount }),
-    });
+    // Refund
+    try {
+      await fetch(`${WALLET_URL}/api/wallets/${userId}/topup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount }),
+      });
+    } catch (fetchErr: any) {
+      await sendLog('ERROR', 'payment-service', 'Refund fetch failed', { error: fetchErr.message });
+    }
     await sql`UPDATE payments SET status = 'failed' WHERE id = ${payment.id}`;
     
     return c.json({ success: false, error: 'Payment failed' }, 500);
