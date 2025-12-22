@@ -4,6 +4,7 @@ import { neon } from '@neondatabase/serverless';
 import { drizzle } from 'drizzle-orm/neon-http';
 import { pgTable, uuid, numeric, text, timestamp, pgEnum } from 'drizzle-orm/pg-core';
 import { eq } from 'drizzle-orm';
+import { sendLog, dynatraceMiddleware } from '../dynatrace.js';
 
 // Schema
 const paymentStatusEnum = pgEnum('payment_status', ['pending', 'success', 'failed']);
@@ -23,11 +24,6 @@ const payments = pgTable('payments', {
 const sql = neon(process.env.PAYMENT_DB_URL!);
 const db = drizzle(sql);
 
-// Logger
-const log = (level: string, msg: string, data?: unknown) => {
-  console.log(`[${new Date().toISOString()}] [${level}] [PAYMENT-SERVICE] ${msg}`, data ? JSON.stringify(data) : '');
-};
-
 // Service URLs
 const WALLET_URL = process.env.WALLET_SERVICE_URL || 'http://localhost:3002';
 const NOTIFICATION_URL = process.env.NOTIFICATION_SERVICE_URL || 'http://localhost:3004';
@@ -39,13 +35,13 @@ const simulateBNI = async () => {
 };
 
 const app = new Hono().basePath('/api');
+app.use('*', dynatraceMiddleware('payment-service'));
 
 app.post('/payments', async (c) => {
   try {
     const { userId, amount, method } = await c.req.json();
-    log('INFO', 'Processing payment', { userId, amount, method });
+    await sendLog('INFO', 'payment-service', 'Processing payment', { userId, amount, method });
     
-    // Deduct wallet
     const deductRes = await fetch(`${WALLET_URL}/api/wallets/${userId}/deduct`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -54,19 +50,18 @@ app.post('/payments', async (c) => {
     const deductData = await deductRes.json();
     
     if (!deductData.success) {
-      log('ERROR', 'Insufficient balance', { userId, amount });
+      await sendLog('ERROR', 'payment-service', 'Insufficient balance', { userId, amount });
       return c.json({ success: false, error: 'Saldo tidak cukup' }, 400);
     }
     
     const [payment] = await db.insert(payments).values({ userId, amount: String(amount), method }).returning();
-    log('INFO', 'Payment created', { paymentId: payment.id });
+    await sendLog('INFO', 'payment-service', 'Payment created', { paymentId: payment.id });
     
-    // Call BNI
     const bni = await simulateBNI();
     
     if (bni.success) {
-      await db.update(payments).set({ status: 'success', externalRef: bni.ref }).where(eq(payments.id, payment.id));
-      log('INFO', 'Payment success', { paymentId: payment.id, bniRef: bni.ref });
+      await sql`UPDATE payments SET status = 'success', external_ref = ${bni.ref} WHERE id = ${payment.id}`;
+      await sendLog('INFO', 'payment-service', 'Payment success', { paymentId: payment.id, bniRef: bni.ref });
       
       await fetch(`${NOTIFICATION_URL}/api/notifications`, {
         method: 'POST',
@@ -77,17 +72,16 @@ app.post('/payments', async (c) => {
       return c.json({ success: true, data: { ...payment, status: 'success' } });
     }
     
-    // Refund if failed
     await fetch(`${WALLET_URL}/api/wallets/${userId}/topup`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ amount }),
     });
-    await db.update(payments).set({ status: 'failed' }).where(eq(payments.id, payment.id));
+    await sql`UPDATE payments SET status = 'failed' WHERE id = ${payment.id}`;
     
     return c.json({ success: false, error: 'Payment failed' }, 500);
   } catch (e: any) {
-    log('ERROR', 'POST /payments failed', { error: e.message });
+    await sendLog('ERROR', 'payment-service', 'POST /payments failed', { error: e.message });
     return c.json({ success: false, error: e.message }, 500);
   }
 });
@@ -97,7 +91,7 @@ app.get('/payments/:userId', async (c) => {
     const list = await db.select().from(payments).where(eq(payments.userId, c.req.param('userId')));
     return c.json({ success: true, data: list });
   } catch (e: any) {
-    log('ERROR', 'GET /payments/:userId failed', { error: e.message });
+    await sendLog('ERROR', 'payment-service', 'GET /payments/:userId failed', { error: e.message });
     return c.json({ success: false, error: e.message }, 500);
   }
 });

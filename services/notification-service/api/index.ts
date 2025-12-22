@@ -4,6 +4,7 @@ import { neon } from '@neondatabase/serverless';
 import { drizzle } from 'drizzle-orm/neon-http';
 import { pgTable, uuid, text, boolean, timestamp } from 'drizzle-orm/pg-core';
 import { eq } from 'drizzle-orm';
+import { sendLog, dynatraceMiddleware } from '../dynatrace.js';
 
 // Schema
 const notifications = pgTable('notifications', {
@@ -19,22 +20,18 @@ const notifications = pgTable('notifications', {
 const sql = neon(process.env.NOTIFICATION_DB_URL!);
 const db = drizzle(sql);
 
-// Logger
-const log = (level: string, msg: string, data?: unknown) => {
-  console.log(`[${new Date().toISOString()}] [${level}] [NOTIFICATION-SERVICE] ${msg}`, data ? JSON.stringify(data) : '');
-};
-
 const app = new Hono().basePath('/api');
+app.use('*', dynatraceMiddleware('notification-service'));
 
 app.post('/notifications', async (c) => {
   try {
     const { userId, title, message } = await c.req.json();
-    log('INFO', 'Sending notification', { userId, title });
+    await sendLog('INFO', 'notification-service', 'Sending notification', { userId, title });
     const [notif] = await db.insert(notifications).values({ userId, title, message }).returning();
-    log('INFO', 'Notification sent', { notifId: notif.id });
+    await sendLog('INFO', 'notification-service', 'Notification sent', { notifId: notif.id });
     return c.json({ success: true, data: notif });
   } catch (e: any) {
-    log('ERROR', 'POST /notifications failed', { error: e.message });
+    await sendLog('ERROR', 'notification-service', 'POST /notifications failed', { error: e.message });
     return c.json({ success: false, error: e.message }, 500);
   }
 });
@@ -44,7 +41,7 @@ app.get('/notifications/:userId', async (c) => {
     const list = await db.select().from(notifications).where(eq(notifications.userId, c.req.param('userId')));
     return c.json({ success: true, data: list });
   } catch (e: any) {
-    log('ERROR', 'GET /notifications/:userId failed', { error: e.message });
+    await sendLog('ERROR', 'notification-service', 'GET /notifications/:userId failed', { error: e.message });
     return c.json({ success: false, error: e.message }, 500);
   }
 });
@@ -54,7 +51,7 @@ app.patch('/notifications/:id/read', async (c) => {
     const [notif] = await db.update(notifications).set({ read: true }).where(eq(notifications.id, c.req.param('id'))).returning();
     return c.json({ success: true, data: notif });
   } catch (e: any) {
-    log('ERROR', 'PATCH /notifications/:id/read failed', { error: e.message });
+    await sendLog('ERROR', 'notification-service', 'PATCH /notifications/:id/read failed', { error: e.message });
     return c.json({ success: false, error: e.message }, 500);
   }
 });

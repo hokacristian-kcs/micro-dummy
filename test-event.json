@@ -1,0 +1,1 @@
+{"eventType":"CUSTOM_INFO","title":"[user-service] Test Event","timeout":30,"properties":{"dt.event.allow_davis_merge":"false","service.name":"user-service","log.level":"INFO","log.message":"Test from CLI"}}
