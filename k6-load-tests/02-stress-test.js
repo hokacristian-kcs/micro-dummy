@@ -103,45 +103,13 @@ export default function () {
   sleep(0.5); // Minimal think time for stress
 
   // ========================================
-  // SECONDARY ATTACK: Payment Processing
-  // Tests Payment → Wallet → Notification cascade
-  // ========================================
-
-  if (userId) {
-    const paymentPayload = JSON.stringify({
-      userId: userId,
-      amount: randomAmount(50000, 200000),
-      method: randomPaymentMethod(),
-    });
-
-    const paymentRes = http.post(
-      `${BASE_URL_PAYMENT}/api/payments`,
-      paymentPayload,
-      {
-        headers: config.headers,
-        tags: { name: 'CreatePayment_Stress', type: 'critical' },
-        timeout: '30s',
-      }
-    );
-
-    const paymentSuccess = checkSuccess(paymentRes, 'Stress:CreatePayment');
-
-    if (!paymentSuccess) {
-      checkForCascadingFailure(paymentRes, 'payment-service');
-      logError(paymentRes, 'Payment Failed');
-    }
-
-    sleep(0.5);
-  }
-
-  // ========================================
-  // TERTIARY ATTACK: Wallet Direct Access
-  // Hammer wallet service directly
+  // SECONDARY ATTACK: Wallet Topup FIRST
+  // Topup wallet before payment to ensure sufficient balance
   // ========================================
 
   if (userId) {
     const topupPayload = JSON.stringify({
-      amount: randomAmount(10000, 100000),
+      amount: randomAmount(100000, 500000), // Topup 100k-500k to ensure sufficient balance
     });
 
     const topupRes = http.post(
@@ -165,6 +133,38 @@ export default function () {
         breakingPointVUs = __VU;
         console.error(`🔴 BREAKING POINT: Wallet Service failing at ~${breakingPointVUs} VUs`);
       }
+    }
+
+    sleep(0.5);
+  }
+
+  // ========================================
+  // TERTIARY ATTACK: Payment Processing
+  // Tests Payment → Wallet → Notification cascade
+  // ========================================
+
+  if (userId) {
+    const paymentPayload = JSON.stringify({
+      userId: userId,
+      amount: randomAmount(50000, 200000), // Payment 50k-200k (should have sufficient balance now)
+      method: randomPaymentMethod(),
+    });
+
+    const paymentRes = http.post(
+      `${BASE_URL_PAYMENT}/api/payments`,
+      paymentPayload,
+      {
+        headers: config.headers,
+        tags: { name: 'CreatePayment_Stress', type: 'critical' },
+        timeout: '30s',
+      }
+    );
+
+    const paymentSuccess = checkSuccess(paymentRes, 'Stress:CreatePayment');
+
+    if (!paymentSuccess) {
+      checkForCascadingFailure(paymentRes, 'payment-service');
+      logError(paymentRes, 'Payment Failed');
     }
   }
 

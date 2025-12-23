@@ -117,7 +117,31 @@ export default function () {
   sleep(0.1);
 
   // ========================================
-  // ATTACK 2: Hammer Payment Endpoint
+  // ATTACK 2: Topup Wallet First
+  // Ensure sufficient balance before payment
+  // ========================================
+
+  if (userId) {
+    const topupPayload = JSON.stringify({
+      amount: randomAmount(500000, 1000000), // Large topup for spike test
+    });
+
+    const topupRes = http.post(
+      `${BASE_URL_WALLET}/api/wallets/${userId}/topup`,
+      topupPayload,
+      {
+        headers: config.headers,
+        tags: { name: 'SpikeTest_Topup', type: 'critical' },
+        timeout: '45s',
+      }
+    );
+
+    checkSuccess(topupRes, 'Spike:Topup');
+    sleep(0.1);
+  }
+
+  // ========================================
+  // ATTACK 3: Hammer Payment Endpoint
   // Tests the complex 3-service chain
   // ========================================
 
@@ -144,7 +168,7 @@ export default function () {
   sleep(0.1);
 
   // ========================================
-  // ATTACK 3: Concurrent Credit Applications
+  // ATTACK 4: Concurrent Credit Applications
   // Another multi-service operation
   // ========================================
 

@@ -4,7 +4,11 @@
       "Bash(grep:*)",
       "Bash(cat:*)",
       "Bash(mkdir:*)",
-      "Bash(chmod:*)"
+      "Bash(chmod:*)",
+      "Bash(find:*)",
+      "Bash(ls:*)",
+      "Bash(curl:*)",
+      "Bash(node migrate-payment-enum.js:*)"
     ]
   }
 }

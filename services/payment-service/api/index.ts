@@ -8,7 +8,7 @@ import { sendLog, dynatraceMiddleware } from '../dynatrace.js';
 
 // Schema
 const paymentStatusEnum = pgEnum('payment_status', ['pending', 'success', 'failed']);
-const paymentMethodEnum = pgEnum('payment_method', ['qris', 'transfer']);
+const paymentMethodEnum = pgEnum('payment_method', ['qris', 'transfer', 'credit_card', 'bank_transfer', 'e_wallet', 'cash']);
 
 const payments = pgTable('payments', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -39,8 +39,37 @@ app.use('*', dynatraceMiddleware('payment-service'));
 app.post('/payments', async (c) => {
   try {
     const { userId, amount, method } = await c.req.json();
+
+    // Validate required fields
+    if (!userId || !amount || !method) {
+      await sendLog('ERROR', 'payment-service', 'Missing required fields', { userId, amount, method });
+      return c.json({
+        success: false,
+        error: 'Missing required fields: userId, amount, and method are required'
+      }, 400);
+    }
+
+    // Validate payment method
+    const validMethods = ['qris', 'transfer', 'credit_card', 'bank_transfer', 'e_wallet', 'cash'];
+    if (!validMethods.includes(method)) {
+      await sendLog('ERROR', 'payment-service', 'Invalid payment method', { method, validMethods });
+      return c.json({
+        success: false,
+        error: `Invalid payment method '${method}'. Allowed: ${validMethods.join(', ')}`
+      }, 400);
+    }
+
+    // Validate amount
+    if (typeof amount !== 'number' || amount <= 0) {
+      await sendLog('ERROR', 'payment-service', 'Invalid amount', { amount });
+      return c.json({
+        success: false,
+        error: 'Amount must be a positive number'
+      }, 400);
+    }
+
     await sendLog('INFO', 'payment-service', 'Processing payment', { userId, amount, method });
-    
+
     if (!WALLET_URL) {
       await sendLog('ERROR', 'payment-service', 'WALLET_SERVICE_URL not set');
       return c.json({ success: false, error: 'Service misconfigured' }, 500);
